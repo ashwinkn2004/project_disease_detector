@@ -1,8 +1,11 @@
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:project_disease_detector/model/model.dart';
 import 'package:project_disease_detector/screens/details.dart';
+import 'package:http/http.dart' as http;
 
 class UpdateScreen extends StatefulWidget {
   const UpdateScreen({super.key});
@@ -12,56 +15,96 @@ class UpdateScreen extends StatefulWidget {
 }
 
 class _UpdateScreenState extends State<UpdateScreen> {
-  List<Disease> diseases = [
-    Disease(
-      imagePath: 'img', // Text placeholder for image
-      diseaseName: 'Disease Name 1',
-      date: '2025-02-10',
-      time: '10:00 AM',
-    ),
-    Disease(
-      imagePath: 'img', // Text placeholder for image
-      diseaseName: 'Disease Name 2',
-      date: '2025-02-12',
-      time: '2:30 PM',
-    ),
-    Disease(
-      imagePath: 'img', // Text placeholder for image
-      diseaseName: 'Disease Name 3',
-      date: '2025-02-14',
-      time: '5:00 PM',
-    ),
-  ];
+  List<Disease> diseases = [];
+  final String apiUrl = 'http://34.31.80.242:5000/predict';  // Your Flask API endpoint
+
+  @override
+  void initState() {
+    super.initState();
+    _listenToFirestoreUpdates();
+    _fetchNewPrediction();
+  }
+
+  // Listen for real-time updates in Firestore
+  void _listenToFirestoreUpdates() {
+    FirebaseFirestore.instance
+        .collection('diseases')
+        .snapshots()
+        .listen((snapshot) {
+      setState(() {
+        diseases = snapshot.docs.map((doc) {
+          return Disease(
+            imagePath: "img", // Update image path as needed
+            diseaseName: doc['diseaseName'],
+            date: doc['date'],
+            time: doc['time'],
+          );
+        }).toList();
+      });
+    });
+  }
+
+  // Fetch prediction from Flask API and update Firebase
+  Future<void> _fetchNewPrediction() async {
+    try {
+      var response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({}),
+      );
+
+      if (response.statusCode == 200) {
+        var data = jsonDecode(response.body);
+        print("🔍 API Response: $data");
+
+        String predictedDisease = data['predicted_disease'];
+        double confidence = data['confidence'];
+
+        // Get the current timestamp
+        DateTime now = DateTime.now();
+        String date = "${now.year}-${now.month}-${now.day}";
+        String time = "${now.hour}:${now.minute}:${now.second}";
+
+        // Add to Firebase Firestore
+        await FirebaseFirestore.instance.collection('diseases').add({
+          'diseaseName': predictedDisease,
+          'confidence': confidence,
+          'date': date,
+          'time': time,
+        });
+
+        print("✅ Disease added to Firestore: $predictedDisease ($confidence%)");
+      } else {
+        print("⚠ API Error: ${response.statusCode}, Response: ${response.body}");
+      }
+    } catch (e) {
+      print("❌ Exception: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     double screenHeight = MediaQuery.of(context).size.height;
 
     return WillPopScope(
-      onWillPop: () async {
-        // Prevent back button press from signing out
-        return Future.value(false); // Return false to prevent the back button action
-      },
+      onWillPop: () async => false,
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
           backgroundColor: Colors.white,
           leading: IconButton(
-            icon: Icon(Icons.logout, color: Colors.black), // Logout icon
+            icon: Icon(Icons.logout, color: Colors.black),
             onPressed: () async {
-              // Sign out the user from Firebase
               await FirebaseAuth.instance.signOut();
-              // Navigate to the login screen
-              Navigator.pushReplacementNamed(
-                  context, '/login'); // Route to Login
+              Navigator.pushReplacementNamed(context, '/login');
             },
           ),
           actions: [
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Image.asset(
-                'asset/logo.png', // Replace with the path to your logo image
-                height: 30, // Set the height of the logo
+                'asset/logo.png',
+                height: 30,
               ),
             ),
           ],
@@ -81,14 +124,12 @@ class _UpdateScreenState extends State<UpdateScreen> {
                 ),
               ),
               SizedBox(height: screenHeight * 0.05),
-
-              // Large container for displaying the diseases or the no diseases message
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: Container(
                   padding: EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.grey[200], // Background color
+                    color: Colors.grey[200],
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.grey, width: 1.5),
                   ),
@@ -97,10 +138,9 @@ class _UpdateScreenState extends State<UpdateScreen> {
                           child: Text(
                             "No disease detected",
                             style: GoogleFonts.raleway(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black),
                           ),
                         )
                       : ListView.builder(
@@ -109,13 +149,11 @@ class _UpdateScreenState extends State<UpdateScreen> {
                           itemBuilder: (context, index) {
                             return GestureDetector(
                               onTap: () {
-                                // Navigate to the DiseaseDetailScreen
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => DiseaseDetailScreen(
-                                      disease: diseases[
-                                          index], // Pass the selected disease
+                                      disease: diseases[index],
                                     ),
                                   ),
                                 );
@@ -136,18 +174,14 @@ class _UpdateScreenState extends State<UpdateScreen> {
                                 ),
                                 child: Row(
                                   children: [
-                                    // Image placeholder
                                     Text(
-                                      diseases[index]
-                                          .imagePath, // Displaying text "img"
+                                      "img", // Text placeholder for the image
                                       style: GoogleFonts.raleway(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green,
-                                      ),
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.red),
                                     ),
                                     SizedBox(width: 15),
-                                    // Disease details
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:
@@ -156,9 +190,8 @@ class _UpdateScreenState extends State<UpdateScreen> {
                                           Text(
                                             diseases[index].diseaseName,
                                             style: GoogleFonts.raleway(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold),
                                           ),
                                           SizedBox(height: 5),
                                           Row(
@@ -166,17 +199,15 @@ class _UpdateScreenState extends State<UpdateScreen> {
                                               Text(
                                                 "Date: ${diseases[index].date}",
                                                 style: GoogleFonts.raleway(
-                                                  fontSize: 14,
-                                                  color: Colors.grey,
-                                                ),
+                                                    fontSize: 14,
+                                                    color: Colors.grey),
                                               ),
                                               SizedBox(width: 15),
                                               Text(
                                                 "Time: ${diseases[index].time}",
                                                 style: GoogleFonts.raleway(
-                                                  fontSize: 14,
-                                                  color: Colors.grey,
-                                                ),
+                                                    fontSize: 14,
+                                                    color: Colors.grey),
                                               ),
                                             ],
                                           ),
