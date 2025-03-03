@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:project_disease_detector/model/model.dart';
 
 class DiseaseDetailScreen extends StatefulWidget {
@@ -20,10 +20,9 @@ class _DiseaseDetailScreenState extends State<DiseaseDetailScreen> {
   @override
   void initState() {
     super.initState();
-    fetchTreatmentInfo(); // Fetch treatment details when the screen loads
+    fetchTreatmentInfo();
   }
 
-  // Function to decode Base64 image
   Uint8List? _decodeImage() {
     try {
       return base64Decode(widget.disease.imageBase64);
@@ -33,34 +32,35 @@ class _DiseaseDetailScreenState extends State<DiseaseDetailScreen> {
     }
   }
 
-  // Function to fetch treatment info from Firebase
   Future<void> fetchTreatmentInfo() async {
-  try {
-    DocumentSnapshot doc = await FirebaseFirestore.instance
-        .collection('diseases')
-        .doc(widget.disease.diseaseName)
-        .get();
+    try {
+      String diseaseName = widget.disease.diseaseName.trim(); // Removes extra spaces
 
-    if (doc.exists) {
-      print("🔥 Document Data: ${doc.data()}"); // Debugging line
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('diseases') // 🔥 Use correct collection name
+          .where("diseaseName", isEqualTo: diseaseName)
+          .get();
 
+      if (querySnapshot.docs.isNotEmpty) {
+        DocumentSnapshot doc = querySnapshot.docs.first;
+        print("🔥 Found document: ${doc.data()}");
+
+        setState(() {
+          treatmentInfo = doc['additionalInfo'] ?? "No additional details available.";
+        });
+      } else {
+        print("❌ No document found for: '$diseaseName'");
+        setState(() {
+          treatmentInfo = "No treatment details found.";
+        });
+      }
+    } catch (e) {
+      print("🚨 Firestore Error: $e");
       setState(() {
-        treatmentInfo = doc['additionalInfo'] ?? "No treatment information available.";
-      });
-    } else {
-      print("❌ No document found for: ${widget.disease.diseaseName}");
-      setState(() {
-        treatmentInfo = "No treatment details found.";
+        treatmentInfo = "Error fetching treatment details.";
       });
     }
-  } catch (e) {
-    print("🚨 Firestore Error: $e");
-    setState(() {
-      treatmentInfo = "Error fetching treatment details.";
-    });
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +81,7 @@ class _DiseaseDetailScreenState extends State<DiseaseDetailScreen> {
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Image.asset(
-              'asset/logo.png', // Ensure this path is correct
+              'asset/logo.png',
               height: 30,
             ),
           ),
@@ -89,66 +89,75 @@ class _DiseaseDetailScreenState extends State<DiseaseDetailScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Display decoded image or placeholder
-            Center(
-              child: imageBytes != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.memory(imageBytes,
-                          width: 200, height: 200, fit: BoxFit.cover),
-                    )
-                  : Icon(Icons.image_not_supported,
-                      size: 100, color: Colors.grey),
-            ),
-            SizedBox(height: 10),
-            Center(
-              child: Text(
-                "Strawberry",
-                style: GoogleFonts.raleway(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Display decoded image or placeholder
+              Center(
+                child: imageBytes != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.memory(imageBytes,
+                            width: 200, height: 200, fit: BoxFit.cover),
+                      )
+                    : Icon(Icons.image_not_supported,
+                        size: 100, color: Colors.grey),
+              ),
+              SizedBox(height: 10),
+              Center(
+                child: Text(
+                  "Strawberry",
+                  style: GoogleFonts.raleway(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
                 ),
               ),
-            ),
-            SizedBox(height: 20),
-            // Disease Name
-            Text(
-              "Disease: ${widget.disease.diseaseName}",
-              style: GoogleFonts.raleway(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 10),
-            // Date and Time
-            Text(
-              "Date: ${widget.disease.date}",
-              style: GoogleFonts.raleway(fontSize: 18, color: Colors.grey),
-            ),
-            SizedBox(height: 10),
-            Text(
-              "Time: ${widget.disease.time}",
-              style: GoogleFonts.raleway(fontSize: 18, color: Colors.grey),
-            ),
-            SizedBox(height: 20),
-            // Treatment Section
-            Text(
-              "Treatments",
-              style: GoogleFonts.raleway(
+              SizedBox(height: 20),
+              Text(
+                "Disease: ${widget.disease.diseaseName}",
+                style: GoogleFonts.raleway(
                   fontSize: 20,
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
-            Text(
-              treatmentInfo, // Display fetched treatment information
-              style: GoogleFonts.raleway(fontSize: 18, color: Colors.black),
-            ),
-          ],
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 10),
+              Text(
+                "Date: ${widget.disease.date}",
+                style: GoogleFonts.raleway(fontSize: 18, color: Colors.grey),
+              ),
+              SizedBox(height: 10),
+              Text(
+                "Time: ${widget.disease.time}",
+                style: GoogleFonts.raleway(fontSize: 18, color: Colors.grey),
+              ),
+              SizedBox(height: 20),
+              // Treatment Section
+              Text(
+                "Treatments",
+                style: GoogleFonts.raleway(
+                    fontSize: 20,
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 10),
+              Container(
+                padding: EdgeInsets.all(12), // Adds padding inside the container
+                margin: EdgeInsets.symmetric(vertical: 8), // Adds space around the container
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50, // Light green background
+                  borderRadius: BorderRadius.circular(12), // Rounded corners
+                  border: Border.all(color: Colors.green, width: 1), // Green border
+                ),
+                child: Text(
+                  treatmentInfo,
+                  style: GoogleFonts.raleway(fontSize: 18, color: Colors.black),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
