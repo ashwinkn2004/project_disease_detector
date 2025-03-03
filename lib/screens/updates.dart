@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -29,12 +32,13 @@ class _UpdateScreenState extends State<UpdateScreen> {
         .orderBy('date', descending: true)
         .snapshots()
         .listen((snapshot) {
-      print("📡 Firestore snapshot received: ${snapshot.docs.length} documents");
+      print(
+          "📡 Firestore snapshot received: ${snapshot.docs.length} documents");
       setState(() {
         diseases = snapshot.docs.map((doc) {
           print("Document data: ${doc.data()}");
           return Disease(
-            imagePath: "img",
+            imageBase64: doc['imageBase64'] ?? '',
             diseaseName: doc['diseaseName'] ?? 'Unknown',
             date: doc['date'] ?? '',
             time: doc['time'] ?? '',
@@ -112,6 +116,9 @@ class _UpdateScreenState extends State<UpdateScreen> {
                           physics: NeverScrollableScrollPhysics(),
                           itemCount: diseases.length,
                           itemBuilder: (context, index) {
+                            Uint8List? imageBytes =
+                                diseases[index].getImageBytes();
+
                             return GestureDetector(
                               onTap: () {
                                 Navigator.push(
@@ -125,7 +132,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
                               },
                               child: Container(
                                 margin: EdgeInsets.only(bottom: 10),
-                                padding: EdgeInsets.all(15),
+                                padding: EdgeInsets.all(10),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(8),
@@ -139,13 +146,19 @@ class _UpdateScreenState extends State<UpdateScreen> {
                                 ),
                                 child: Row(
                                   children: [
-                                    Text(
-                                      "img",
-                                      style: GoogleFonts.raleway(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.green),
-                                    ),
+                                    imageBytes != null
+                                        ? ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            child: Image.memory(
+                                              imageBytes,
+                                              width: 50,
+                                              height: 50,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          )
+                                        : Icon(Icons.image,
+                                            size: 50, color: Colors.grey),
                                     SizedBox(width: 15),
                                     Expanded(
                                       child: Column(
@@ -174,6 +187,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
                                                 style: GoogleFonts.raleway(
                                                     fontSize: 14,
                                                     color: Colors.grey),
+
                                               ),
                                             ],
                                           ),
